@@ -20,13 +20,13 @@ focuses on a clean, testable scraping architecture rather than bypassing protect
 
 ## Tech stack
 
-- PHP 8.5 (via Laravel Sail)
+- PHP 8.2 (via Laravel Sail)
 - Laravel 10.x
 - MySQL (via Sail)
 - Redis (via Sail, optional)
 - Bootstrap 5 (CDN) + Blade templates
 - DTO + Value Object + Service layer
-- PHP 8.5 Enums
+- PHP Enums
 
 ---
 

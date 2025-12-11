@@ -14,6 +14,7 @@ final class TvProductController extends Controller
     public function index(): View
     {
         $products = TvProduct::query()
+            ->where('category', TvCategory::TELEVIZORJI->value)
             ->orderBy('title')
             ->paginate(20);     // 20 per page, as required by the assignment
 

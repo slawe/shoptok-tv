@@ -9,8 +9,7 @@ use Illuminate\Support\Facades\File;
 
 class ShoptokScrapeAllFixtures extends Command
 {
-    protected $signature = 'shoptok:scrape-all-fixtures
-                            {--category= : Optional TvCategory value (e.g. "Televizorji")}';
+    protected $signature = 'shoptok:scrape-all-fixtures';
 
     protected $description = 'Import all Shoptok televizorji fixtures into database';
 
@@ -21,56 +20,50 @@ class ShoptokScrapeAllFixtures extends Command
 
     public function handle(): int
     {
-        $categoryOption = $this->option('category');
-        $categoryEnum = TvCategory::TELEVIZORJI;
-
-        // convert CLI option to enum
-        if ($categoryOption !== null) {
-            try {
-                $categoryEnum = TvCategory::from($categoryOption);
-            } catch (\ValueError) {
-                $this->warn("Unknown category '{$categoryOption}', falling back to Televizorji.");
-                $categoryEnum = TvCategory::TELEVIZORJI;
-            }
-        }
-
-        $baseDir = resource_path('fixtures/shoptok/televizorji');
-
-        if (!File::exists($baseDir)) {
-            $this->error("Directory not found: {$baseDir}");
-
-            return self::FAILURE;
-        }
-
-        $files = collect(File::files($baseDir))
-            ->filter(fn ($file) => $file->getExtension() === 'html')
-            ->sortBy(fn ($file) => $file->getFilename())
-            ->values();
-
-        if ($files->isEmpty()) {
-            $this->warn("No HTML fixtures found in {$baseDir}");
-
-            return self::SUCCESS;
-        }
-
-        $this->info("Found {$files->count()} fixture file(s) in {$baseDir}.");
+        // mapping categories to directories with HTML fixtures
+        $fixturesConfig = [
+            TvCategory::TELEVIZORJI->value => 'fixtures/shoptok/televizorji',
+            TvCategory::TV_DODATKI->value  => 'fixtures/shoptok/tv_dodatki',
+        ];
 
         $total = 0;
 
-        foreach ($files as $file) {
-            $relative = 'fixtures/shoptok/televizorji/' . $file->getFilename();
+        foreach ($fixturesConfig as $categoryValue => $relativeDir) {
+            // convert string ("Televizorji") back to enum
+            $categoryEnum = TvCategory::from($categoryValue);
 
-            $this->info("→ Importing {$relative} ...");
+            $baseDir = resource_path($relativeDir);
 
-            $count = $this->importService->importFromHtmlFixture($relative, $categoryEnum);
+            if (! is_dir($baseDir)) {
+                $this->warn("Directory not found for {$categoryEnum->value}: {$baseDir}");
+                continue;
+            }
 
-            $this->info("   Imported/updated {$count} product(s) from {$relative}.");
+            $files = collect(File::files($baseDir))
+                ->filter(fn ($file) => $file->getExtension() === 'html')
+                ->sortBy(fn ($file) => $file->getFilename())
+                ->values();
 
-            $total += $count;
+            if ($files->isEmpty()) {
+                $this->warn("No HTML fixtures found for {$categoryEnum->value} in {$baseDir}");
+                continue;
+            }
+
+            $this->info("Found {$files->count()} fixture file(s) for {$categoryEnum->value} in {$baseDir}.");
+
+            foreach ($files as $file) {
+                $relativePath = $relativeDir . '/' . $file->getFilename();
+                $this->line("→ Importing {$relativePath} ({$categoryEnum->value}) ...");
+                $importedForFile = $this->importService->importFromHtmlFixture($relativePath, $categoryEnum);
+                $this->line("   Imported/updated {$importedForFile} product(s) from {$relativePath}.");
+
+                $total += $importedForFile;
+            }
         }
 
         $this->info("Done. Total imported/updated products from all fixtures: {$total}.");
 
         return self::SUCCESS;
     }
+
 }

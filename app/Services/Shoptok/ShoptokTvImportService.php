@@ -16,13 +16,15 @@ final class ShoptokTvImportService
     public function __construct(private readonly ShoptokTvPageScraper $scraper) {}
 
     /**
-     * Import of one page - we leave it if needed for debugging.
+     * Import from a live URL (kept for completeness, currently not used due to 403/WAF).
      *
      * @param string $url
-     * @param string|null $category
+     * @param TvCategory $category
      * @return int
      * @throws RequestException
+     * @deprecated
      */
+    #[\Deprecated(message: "Live crawling is blocked by WAF – use importFromFixture() instead.")]
     public function importFromUrl(string $url, TvCategory $category): int
     {
         $result = $this->scraper->scrapePage($url, $category->value);
@@ -30,6 +32,14 @@ final class ShoptokTvImportService
         return $this->upsertProducts($result->products);
     }
 
+    /**
+     * Import all products from a single HTML fixture file.
+     *
+     * @param string $relativePath
+     * @param TvCategory $category
+     * @return int
+     * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
+     */
     public function importFromHtmlFixture(string $relativePath, TvCategory $category): int
     {
         $absolutePath = resource_path($relativePath);
@@ -47,30 +57,6 @@ final class ShoptokTvImportService
         );
 
         return $this->upsertProducts($result->products);
-    }
-
-    /**
-     * Import the entire category (all pages) starting from startUrl.
-     *
-     * @param string $startUrl
-     * @param string|null $category
-     * @return int
-     * @throws RequestException
-     */
-    public function importCategory(string $startUrl, TvCategory $category): int
-    {
-        $total = 0;
-        $currentUrl = $startUrl;
-
-        while ($currentUrl !== null) {
-            $result = $this->scraper->scrapePage($currentUrl, $category->value);
-
-            $total += $this->upsertProducts($result->products);
-
-            $currentUrl = $result->nextPageUrl;
-        }
-
-        return $total;
     }
 
     /**
@@ -96,7 +82,7 @@ final class ShoptokTvImportService
             );
 
             if ($model->wasRecentlyCreated || $model->wasChanged()) {
-                $touched[$model->product_url] = true;
+                $touched[$model->external_id] = true;
             }
         }
 

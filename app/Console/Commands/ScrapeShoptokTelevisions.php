@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Services\Shoptok\ShoptokTvImportService;
 use Illuminate\Console\Command;
-use JetBrains\PhpStorm\Deprecated;
 
-#[Deprecated]
+/**
+ * @deprecated Live crawling is blocked by WAF – use "shoptok:scrape-all-fixtures" instead.
+ */
 class ScrapeShoptokTelevisions extends Command
 {
     protected $signature = 'shoptok:scrape-televisions
@@ -16,29 +16,14 @@ class ScrapeShoptokTelevisions extends Command
                             {--category=Televizorji : Category label to assign to products}
                             {--single-page : Only scrape the first page (debug/development)}';
 
-    protected $description = 'Scrape televisions from Shoptok and store them in the database.';
-
-    public function __construct(private readonly ShoptokTvImportService $importService)
-    {
-        parent::__construct();
-    }
+    protected $description = 'DEPRECATED: live scraping is blocked by WAF. Use "shoptok:scrape-all-fixtures" instead.';
 
     public function handle(): int
     {
-        $url = (string) $this->option('url');
-        $category = $this->option('category');
-        $singlePage = (bool) $this->option('single-page');
+        $this->warn('This command is deprecated.');
+        $this->warn('Live crawling is blocked by WAF / Cloudflare.');
+        $this->warn('Please use "php artisan shoptok:scrape-all-fixtures" instead (fixture-based import).');
 
-        if ($singlePage) {
-            $this->info("Scraping ONLY first page from: {$url}");
-            $importedCount = $this->importService->importFromUrl($url, $category);
-        } else {
-            $this->info("Scraping ALL pages for category starting from: {$url}");
-            $importedCount = $this->importService->importCategory($url, $category);
-        }
-
-        $this->info("Imported / updated {$importedCount} products.");
-
-        return self::SUCCESS;
+        return self::FAILURE;
     }
 }

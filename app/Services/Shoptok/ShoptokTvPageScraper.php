@@ -35,6 +35,7 @@ final class ShoptokTvPageScraper
      * @param string|null $category
      * @return ShoptokPageResult
      * @throws RequestException
+     * @deprecated
      */
     #[Deprecated(message:
         "Attention Required! | Cloudflar
