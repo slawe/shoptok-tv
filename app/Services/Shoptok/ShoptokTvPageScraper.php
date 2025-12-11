@@ -133,12 +133,14 @@ final class ShoptokTvPageScraper
         $normalizedHtml = $this->normalizeHtmlForCrawler($html);
         // create a Crawler over the real DOM
         $crawler = new Crawler($normalizedHtml);
+        // selector for products grid
+        $productsGrid = $crawler->filter('div#pr_view_grid.bts[data-category="browse_L3"]');
         // main selector for product cards
-        $productNodes = $crawler->filter('div.b-paging-product');
+        $productNodes = $productsGrid->filter('div.b-paging-product');
 
         // fallback in case of class change on the site
         if ($productNodes->count() === 0) {
-            $productNodes = $crawler->filter('[data-entity="product"], .product');
+            $productNodes = $crawler->filter('div.b-paging-product');
         }
 
         $products = [];
