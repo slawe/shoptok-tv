@@ -7,7 +7,7 @@ The goal is to:
 1. Fetch all *Televizorji* products from Shoptok  
    (`https://www.shoptok.si/televizorji/cene/206`) and store them in a database.
 2. Render them on a dedicated page with pagination (20 per page).
-3. Bonus: implement a crawler for the whole **TV sprejemniki** category  
+3. **Bonus:** implement a crawler for the whole **TV sprejemniki** category  
    (`https://www.shoptok.si/tv-prijamniki/cene/56`) and build a UI with a left-side submenu  
    for the leaf categories (e.g. *Televizorji*, *TV dodatki*).
 
@@ -20,13 +20,14 @@ focuses on a clean, testable scraping architecture rather than bypassing protect
 
 ## Tech stack
 
-- PHP 8.2 (via Laravel Sail)
+- PHP 8.2+ (tested on PHP 8.5.0 via Laravel Sail)
 - Laravel 10.x
 - MySQL (via Sail)
 - Redis (via Sail, optional)
 - Bootstrap 5 (CDN) + Blade templates
 - DTO + Value Object + Service layer
-- PHP Enums
+- PHP 8.1+ Enums
+- Symfony DomCrawler + CssSelector (for HTML parsing)
 
 ---
 
@@ -46,6 +47,8 @@ composer install
 # Install JS dependencies (only if you want to run Vite)
 npm install
 ```
+> Vite / asset pipeline is not required for this assignment because the UI is Blade + Bootstrap CDN.<br>
+> NPM is only needed if you want to run the full Laravel frontend workflow.
 
 ### 2. Start Sail containers
 
@@ -90,20 +93,17 @@ The target site is behind Cloudflare/WAF and consistently returns `403 Forbidden
 non-browser clients, even when providing realistic headers and cookies.
 
 Instead of attempting to circumvent these protections (which would be out of scope for
-a coding assignment and potentially against the site's ToS), this project takes a fixture-driven approach:
+a coding assignment and potentially against the site's ToS), this project takes a **fixture-driven approach**:
 
-HTML pages are saved via **"View Source"** in a browser.
-
-These fixtures are committed into the repository.
-
-The scraper is implemented against those fixtures, using the same DOM structure as
-the live site.
-
-The architecture is the same whether the HTML comes from an HTTP client or from disk.
+* HTML pages are saved via **"View Source"** in a browser.
+* These fixtures are committed into the repository.
+* The scraper is implemented against those fixtures, using the same DOM structure as the live site.
+* The architecture is the same whether the HTML comes from an HTTP client or from disk.
 
 All fixtures are located under:
 ```text
 resources/fixtures/shoptok/televizorji/*.html
+resources/fixtures/shoptok/tv_dodatki/*.html
 ```
 
 > Note: The HTML is in _view-source_ format (escaped markup inside `<td class="line-content">`),<br>
@@ -128,19 +128,19 @@ Core classes:
 
 The scraper is deliberately SRP-oriented:
 
-* One public method for HTTP (scrapePage()),
-* One public method for fixtures (scrapeHtml()),
+* One public method for HTTP (`scrapePage()`) - kept for completeness, but not used in production due to WAF.
+* One public method for fixtures (`scrapeHtml()`),
 * Many small private methods:
-  * extractTitle()
-  * extractBrand()
-  * extractShopName()
-  * extractPriceText()
-  * extractProductUrl()
-  * extractImageUrl()
-  * extractExternalIdFromTitle()
-  * extractExternalIdFromNode()
-  * extractNextPageUrl()
-  * normalizeHtmlForCrawler() – converts view-source HTML into real DOM.
+  * `extractTitle()`
+  * `extractBrand()`
+  * `extractShopName()`
+  * `extractPriceText()`
+  * `extractProductUrl()`
+  * `extractImageUrl()`
+  * `extractExternalIdFromTitle()`
+  * `extractExternalIdFromNode()`
+  * `extractNextPageUrl()`
+  * `normalizeHtmlForCrawler()` – converts view-source HTML into real DOM.
 
 ```php
 final class ShoptokTvPageScraper
@@ -170,9 +170,34 @@ Main command:
 ```bash
 ./vendor/bin/sail artisan shoptok:scrape-all-fixtures
 ```
-The importer uses updateOrCreate keyed by product_url (or external_id), so
-duplicate appearances of the same product across pages will not create duplicates
-in the database.
+
+This command:
+* imports all fixture pages for **Televizorji** (`resources/fixtures/shoptok/televizorji`),
+* imports all fixture pages for **TV dodatki** (`resources/fixtures/shoptok/tv_dodatki`),
+* logs how many products were imported/updated per file,
+* prints the total number of products in the database at the end.
+
+Notes:
+* The importer uses `updateOrCreate` keyed by `product_url`, so<br>
+  duplicate appearances of the same product across pages **do not** create duplicates<br>
+  in the database.
+* The “Imported/updated … product(s)” count reflects how many products were **actually**<br>
+  **created/changed** in that run; running the command multiple times will often result in low numbers<br>
+  because the database is already in sync with the fixtures.
+
+### Deprecated live-scraping command
+
+Originally, the project also contained a command intended for live crawling over HTTP:
+* shoptok:scrape-televisions
+
+Due to Cloudflare/WAF consistently returning 403 Forbidden for non-browser clients, this flow was deprecated.
+
+The command is left in the codebase only as documentation of the original intent and now simply prints a message pointing to the fixture-based import:
+
+```bash
+./vendor/bin/sail artisan shoptok:scrape-televisions
+# => DEPRECATED: live scraping is blocked by WAF. Use "shoptok:scrape-all-fixtures" instead.
+```
 
 ---
 
