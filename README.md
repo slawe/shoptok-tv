@@ -36,7 +36,7 @@ focuses on a clean, testable scraping architecture rather than bypassing protect
 ### 1. Clone & install dependencies
 
 ```bash
-git clone https://github.com/your-user/shoptok-tv.git
+git clone https://github.com/slawe/shoptok-tv.git
 cd shoptok-tv
 
 cp .env.example .env
