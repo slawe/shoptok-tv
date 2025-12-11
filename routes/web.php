@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\TvProductController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -16,3 +17,6 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/televizorji', [TvProductController::class, 'index'])->name('tv.index');
+Route::get('/tv-sprejemniki', [TvProductController::class, 'receivers'])->name('tv.receivers');

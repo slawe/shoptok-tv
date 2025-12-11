@@ -2,13 +2,15 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\TvCategory;
 use App\Services\Shoptok\ShoptokTvImportService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
 class ShoptokScrapeAllFixtures extends Command
 {
-    protected $signature = 'shoptok:scrape-all-fixtures';
+    protected $signature = 'shoptok:scrape-all-fixtures
+                            {--category= : Optional TvCategory value (e.g. "Televizorji")}';
 
     protected $description = 'Import all Shoptok televizorji fixtures into database';
 
@@ -19,6 +21,19 @@ class ShoptokScrapeAllFixtures extends Command
 
     public function handle(): int
     {
+        $categoryOption = $this->option('category');
+        $categoryEnum = TvCategory::TELEVIZORJI;
+
+        // convert CLI option to enum
+        if ($categoryOption !== null) {
+            try {
+                $categoryEnum = TvCategory::from($categoryOption);
+            } catch (\ValueError) {
+                $this->warn("Unknown category '{$categoryOption}', falling back to Televizorji.");
+                $categoryEnum = TvCategory::TELEVIZORJI;
+            }
+        }
+
         $baseDir = resource_path('fixtures/shoptok/televizorji');
 
         if (!File::exists($baseDir)) {
@@ -29,13 +44,16 @@ class ShoptokScrapeAllFixtures extends Command
 
         $files = collect(File::files($baseDir))
             ->filter(fn ($file) => $file->getExtension() === 'html')
-            ->sortBy(fn ($file) => $file->getFilename());
+            ->sortBy(fn ($file) => $file->getFilename())
+            ->values();
 
-        $this->info(sprintf(
-            'Found %d fixture file(s) in %s.',
-            $files->count(),
-            $baseDir
-        ));
+        if ($files->isEmpty()) {
+            $this->warn("No HTML fixtures found in {$baseDir}");
+
+            return self::SUCCESS;
+        }
+
+        $this->info("Found {$files->count()} fixture file(s) in {$baseDir}.");
 
         $total = 0;
 
@@ -44,7 +62,7 @@ class ShoptokScrapeAllFixtures extends Command
 
             $this->info("→ Importing {$relative} ...");
 
-            $count = $this->importService->importFromHtmlFixture($relative);
+            $count = $this->importService->importFromHtmlFixture($relative, $categoryEnum);
 
             $this->info("   Imported/updated {$count} product(s) from {$relative}.");
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Shoptok;
 
 use App\DTO\TvProductData;
+use App\Enums\TvCategory;
 use App\ValueObjects\Money;
 use Deprecated;
 use Illuminate\Http\Client\Factory as HttpFactory;
@@ -17,7 +18,6 @@ use Throwable;
 
 final class ShoptokTvPageScraper
 {
-    private const string DEFAULT_CATEGORY = 'Televizorji';
     private const string BASE_URL = 'https://www.shoptok.si';
 
     /**
@@ -77,6 +77,11 @@ final class ShoptokTvPageScraper
     public function scrapeHtml(string $html, ?string $category = null, ?string $currentUrl = null): ShoptokPageResult
     {
         return $this->parseDocument($html, $category, $currentUrl);
+    }
+
+    private function defaultCategory(): string
+    {
+        return TvCategory::TELEVIZORJI->value;
     }
 
     /**
@@ -195,7 +200,7 @@ final class ShoptokTvPageScraper
             productUrl: $productUrl,
             imageUrl: $imageUrl,
             price: $price,
-            category: $category ?? self::DEFAULT_CATEGORY,
+            category: $category ?? $this->defaultCategory(),
             externalId: $externalId,
         );
     }

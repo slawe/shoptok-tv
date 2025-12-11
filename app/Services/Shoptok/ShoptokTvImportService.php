@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Shoptok;
 
 use App\DTO\TvProductData;
+use App\Enums\TvCategory;
 use App\Models\TvProduct;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\File;
@@ -12,10 +13,7 @@ use RuntimeException;
 
 final class ShoptokTvImportService
 {
-    public function __construct(
-        private readonly ShoptokTvPageScraper $scraper,
-    ) {
-    }
+    public function __construct(private readonly ShoptokTvPageScraper $scraper) {}
 
     /**
      * Import of one page - we leave it if needed for debugging.
@@ -25,14 +23,14 @@ final class ShoptokTvImportService
      * @return int
      * @throws RequestException
      */
-    public function importFromUrl(string $url, ?string $category = null): int
+    public function importFromUrl(string $url, TvCategory $category): int
     {
-        $result = $this->scraper->scrapePage($url, $category);
+        $result = $this->scraper->scrapePage($url, $category->value);
 
         return $this->upsertProducts($result->products);
     }
 
-    public function importFromHtmlFixture(string $relativePath, ?string $category = null): int
+    public function importFromHtmlFixture(string $relativePath, TvCategory $category): int
     {
         $absolutePath = resource_path($relativePath);
 
@@ -44,7 +42,7 @@ final class ShoptokTvImportService
 
         $result = $this->scraper->scrapeHtml(
             $html,
-            $category,
+            $category->value,
             'https://www.shoptok.si/televizorji/cene/206',
         );
 
@@ -59,13 +57,13 @@ final class ShoptokTvImportService
      * @return int
      * @throws RequestException
      */
-    public function importCategory(string $startUrl, ?string $category = null): int
+    public function importCategory(string $startUrl, TvCategory $category): int
     {
         $total = 0;
         $currentUrl = $startUrl;
 
         while ($currentUrl !== null) {
-            $result = $this->scraper->scrapePage($currentUrl, $category);
+            $result = $this->scraper->scrapePage($currentUrl, $category->value);
 
             $total += $this->upsertProducts($result->products);
 
@@ -80,10 +78,10 @@ final class ShoptokTvImportService
      */
     private function upsertProducts(array $dtos): int
     {
-        $count = 0;
+        $touched = [];
 
         foreach ($dtos as $dto) {
-            TvProduct::updateOrCreate(
+            $model = TvProduct::updateOrCreate(
                 ['external_id' => $dto->externalId],
                 [
                     'title' => $dto->title,
@@ -97,9 +95,12 @@ final class ShoptokTvImportService
                 ]
             );
 
-            $count++;
+            if ($model->wasRecentlyCreated || $model->wasChanged()) {
+                $touched[$model->product_url] = true;
+            }
         }
 
-        return $count;
+        // number of unique external_id that were actually created/modified
+        return count($touched);
     }
 }

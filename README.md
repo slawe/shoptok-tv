@@ -1,66 +1,287 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Shoptok TV – Mini Crawling & Listing Project
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+This is a small Laravel application built for a coding assignment.
 
-## About Laravel
+The goal is to:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+1. Fetch all *Televizorji* products from Shoptok  
+   (`https://www.shoptok.si/televizorji/cene/206`) and store them in a database.
+2. Render them on a dedicated page with pagination (20 per page).
+3. Bonus: implement a crawler for the whole **TV sprejemniki** category  
+   (`https://www.shoptok.si/tv-prijamniki/cene/56`) and build a UI with a left-side submenu  
+   for the leaf categories (e.g. *Televizorji*, *TV dodatki*).
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Because the target site is protected by WAF / anti-bot (Cloudflare), the "live" HTTP
+version is blocked with `403 Forbidden`.  
+For that reason, this project uses **HTML fixtures** checked into the repository and
+focuses on a clean, testable scraping architecture rather than bypassing protection.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Tech stack
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- PHP 8.5 (via Laravel Sail)
+- Laravel 10.x
+- MySQL (via Sail)
+- Redis (via Sail, optional)
+- Bootstrap 5 (CDN) + Blade templates
+- DTO + Value Object + Service layer
+- PHP 8.5 Enums
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+---
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Running the project
 
-## Laravel Sponsors
+### 1. Clone & install dependencies
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```bash
+git clone https://github.com/your-user/shoptok-tv.git
+cd shoptok-tv
 
-### Premium Partners
+cp .env.example .env
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+# Install PHP dependencies
+composer install
 
-## Contributing
+# Install JS dependencies (only if you want to run Vite)
+npm install
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 2. Start Sail containers
 
-## Code of Conduct
+```bash
+./vendor/bin/sail up -d
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+This will start:
+* laravel.test (app),
+* mysql,
+* redis.
 
-## Security Vulnerabilities
+Default ports:
+* App: http://localhost
+* MySQL: 127.0.0.1:3306
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### 3. Database & migrations
 
-## License
+Update `.env` to use Sail's MySQL service:
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=mysql
+DB_PORT=3306
+DB_DATABASE=laravel
+DB_USERNAME=sail
+DB_PASSWORD=password
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Run migrations:
+
+```bash
+./vendor/bin/sail artisan migrate
+```
+
+---
+
+## Scraping / Import – fixture-based approach
+
+### Why fixtures?
+
+The target site is behind Cloudflare/WAF and consistently returns `403 Forbidden` for
+non-browser clients, even when providing realistic headers and cookies.
+
+Instead of attempting to circumvent these protections (which would be out of scope for
+a coding assignment and potentially against the site's ToS), this project takes a fixture-driven approach:
+
+HTML pages are saved via **"View Source"** in a browser.
+
+These fixtures are committed into the repository.
+
+The scraper is implemented against those fixtures, using the same DOM structure as
+the live site.
+
+The architecture is the same whether the HTML comes from an HTTP client or from disk.
+
+All fixtures are located under:
+```text
+resources/fixtures/shoptok/televizorji/*.html
+```
+
+> Note: The HTML is in _view-source_ format (escaped markup inside `<td class="line-content">`),<br>
+> so the scraper contains a normalization step that reconstructs the original DOM.
+
+### Scraper architecture
+
+Core classes:
+
+* App\DTO\TvProductData
+  Simple DTO for a TV product (title, brand, shop, URLs, price, category, external ID).
+* App\ValueObjects\Money<br>
+  Small value object representing a monetary amount in cents + ISO currency code.
+* App\Enums\TvCategory<br>
+  Backed enum for domain categories, e.g. Televizorji, TV dodatki.
+* App\Services\Shoptok\ShoptokTvPageScraper<br>
+  Responsible for turning HTML into TvProductData objects.
+* App\Services\Shoptok\ShoptokTvImportService<br>
+  Responsible for importing DTOs into the tv_products table.
+* App\Console\Commands\ShoptokScrapeAllFixtures<br>
+  Artisan command orchestrating the import from all fixtures.
+
+The scraper is deliberately SRP-oriented:
+
+* One public method for HTTP (scrapePage()),
+* One public method for fixtures (scrapeHtml()),
+* Many small private methods:
+  * extractTitle()
+  * extractBrand()
+  * extractShopName()
+  * extractPriceText()
+  * extractProductUrl()
+  * extractImageUrl()
+  * extractExternalIdFromTitle()
+  * extractExternalIdFromNode()
+  * extractNextPageUrl()
+  * normalizeHtmlForCrawler() – converts view-source HTML into real DOM.
+
+```php
+final class ShoptokTvPageScraper
+{
+    public function scrapeHtml(
+        string $html,
+        ?string $category = null,
+        ?string $currentUrl = null,
+    ): ShoptokPageResult {
+        // ...
+    }
+
+    // Private helpers: extractTitle, extractBrand, extractPriceText, etc.
+}
+```
+
+This design adheres to SOLID:
+* **S**ingle Responsibility - parsing and persistence are separated.
+* **O**pen/Closed - adding another category or changing mapping rules does not require touching the controller.
+* **L**iskov - DTOs are simple and never surprise callers.
+* **I**nterface Segregation - responsibilities are split into DTO/VO/service layers instead of one "god class".
+* **D**ependency Inversion - controllers depend on abstractions (services/models), not on raw HTTP clients.
+
+### Importing from fixtures
+
+Main command:
+```bash
+./vendor/bin/sail artisan shoptok:scrape-all-fixtures
+```
+The importer uses updateOrCreate keyed by product_url (or external_id), so
+duplicate appearances of the same product across pages will not create duplicates
+in the database.
+
+---
+
+## Data Model
+
+`tv_products` table (simplified):
+
+* `id` (PK)
+* `title` (string)
+* `brand` (nullable string)
+* `shop` (nullable string, e.g. "v 3 trgovinah")
+* `product_url` (unique string)
+* `image_url` (nullable string)
+* `price_cents` (nullable integer)
+* `currency` (string, default EUR)
+* `category` (string, matches TvCategory enum values)
+* `external_id` (nullable string, Shoptok internal ID)
+* Timestamps (`created_at`, `updated_at`)
+
+Model: `App\Models\TvProduct`
+
+The model uses `$guarded` nothing is "mass-assignment" protected.
+
+---
+
+## Frontend – listing & pagination
+
+The frontend is intentionally simple and server-side rendered using Blade + Bootstrap 5.
+
+### 1. Televizorji listing (`/televizorji`)
+
+Route:
+```php
+Route::get('/televizorji', [TvProductController::class, 'index'])
+    ->name('tv.index');
+```
+Features:
+* 20 products per page (`paginate(20)`).
+* Simple card layout (brand, title, image, price, shop info).
+* Pagination uses Bootstrap 5 (`Paginator::useBootstrapFive()` in `AppServiceProvider`).
+
+### 2. TV receivers (TV sprejemniki) page (`/tv-sprejemniki`)
+
+This page implements the BONUS part of the task: it represents the logical parent
+category TV sprejemniki with leaf categories:
+* `Televizorji`
+* `TV dodatki`
+
+Route:
+```php
+Route::get('/tv-sprejemniki', [TvProductController::class, 'receivers'])
+    ->name('tv.receivers');
+```
+
+View (`resources/views/tv/receivers.blade.php`) renders:
+* **Left sidebar** with submenu:
+  * "Vsi izdelki"
+  * "Televizorji"
+  * "TV dodatki"
+
+* **Right side:** grid of product cards (reusing the same partial as `/televizorji`).
+* Pagination (20 per page) preserved with `withQueryString()`.
+
+This mimics the original **Shoptok** layout where _TV sprejemniki_ is a parent category
+and _Televizorji_ / _TV dodatki_ are its subcategories.
+
+---
+
+## Design decisions
+
+* **Fixture-based scraping:**<br>
+    Instead of bypassing WAF and attempting to scrape directly from production HTML, the project
+    uses static fixtures and focuses on clean parsing logic, DTOs, and import.
+* **Separation of concerns:**<br>
+  * Scraper only knows how to translate HTML → DTO (`TvProductData`).
+  * Import service only knows how to translate DTO → Eloquent (`TvProduct`).
+  * Controllers only orchestrate queries and return views.
+* **Enums for domain categories:**<br>
+    `TvCategory` is the single source of truth for valid category values; no "magic strings"
+    scattered throughout the code.
+* **Value object for money:**<br>
+    Eases price parsing and enforces consistent representation (integer cents + currency).
+* **Bootstrap over a JS framework:**<br>
+    For this assignment, server-side Blade rendering is more than enough. If needed, a
+    Vue/React enhancement can be added later as a thin client-side filter/search, but is not
+    required to satisfy the core task.
+
+---
+
+## How to extend
+
+A few natural extensions:
+* Add more fixtures for:
+  * Other categories under _TV sprejemniki_ (e.g. _TV dodatki_),
+  * Additional sorting or filter variants.
+* Implement feature tests for:
+  * Import logic from fixtures,
+  * Listing pages (`/televizorji`, `/tv-sprejemniki`).
+* Extract interfaces for the scraping service to allow swapping implementations<br>
+(e.g. using a headless browser / external scraping API behind the same interface).
+
+---
+
+## Summary
+
+This project demonstrates:
+* A small but production-style Laravel codebase,
+* Clean separation between scraping, import, and presentation,
+* Fixture-based approach to work around WAF/403 while still writing realistic scraping code,
+* Domain-driven structuring with DTOs, value objects, and enums,
+* Pagination and category filtering for both _Televizorji_ and _TV sprejemniki_ views.
+
