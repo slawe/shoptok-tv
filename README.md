@@ -113,7 +113,7 @@ resources/fixtures/shoptok/tv_dodatki/*.html
 
 Core classes:
 
-* App\DTO\TvProductData
+* App\DTO\TvProductData<br>
   Simple DTO for a TV product (title, brand, shop, URLs, price, category, external ID).
 * App\ValueObjects\Money<br>
   Small value object representing a monetary amount in cents + ISO currency code.
