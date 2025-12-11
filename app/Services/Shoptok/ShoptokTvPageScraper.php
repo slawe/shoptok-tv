@@ -174,11 +174,12 @@ final class ShoptokTvPageScraper
     private function mapNodeToDto(Crawler $node, ?string $category): TvProductData
     {
         $title = $this->extractTitle($node);
-        $brand = $this->guessBrandFromTitle($title);
+        $brand = $this->extractBrand($node);
         $shop  = $this->extractShopName($node);
         $productUrl = $this->extractProductUrl($node);
         $imageUrl   = $this->extractImageUrl($node);
         $priceText  = $this->extractPriceText($node);
+        $externalId = $this->extractExternalId($node);
 
         $price = null;
         if ($priceText !== null) {
@@ -187,11 +188,6 @@ final class ShoptokTvPageScraper
             } catch (InvalidArgumentException) {
                 $price = null;
             }
-        }
-
-        $externalId = $this->extractExternalIdFromTitle($title);
-        if ($externalId === null) {
-            $externalId = $this->extractExternalIdFromNode($node);
         }
 
         return new TvProductData(
@@ -227,29 +223,44 @@ final class ShoptokTvPageScraper
     }
 
     /**
-     * Brand: if there is <b>...</b> in the title, take that,
-     * otherwise the first token from the name.
+     * Brand: extract from event-viewitem-brand inside h3.l3-product-title or
+     * if there is <b>...</b> in the title, take that.
      *
-     * @param string $title
+     * @param Crawler $productNode
      * @return string|null
      */
-    private function guessBrandFromTitle(string $title): ?string
+    private function extractBrand(Crawler $productNode): ?string
     {
-        $trimmed = trim($title);
-        if ($trimmed === '') {
-            return null;
+        // 1) Primary source: event-viewitem-brand at h3.l3-product-title
+        try {
+            $titleNode = $productNode->filter('h3.l3-product-title');
+
+            if ($titleNode->count() > 0) {
+                $brandAttr = $titleNode->attr('event-viewitem-brand');
+
+                if ($brandAttr !== null && $brandAttr !== '') {
+                    return trim($brandAttr);
+                }
+            }
+        } catch (InvalidArgumentException $e) {
+            // selector did not find anything - we ignore it
         }
 
-        // brand is the first word, eg "Samsung 50NANO..."
-        $parts = preg_split('/\s+/u', $trimmed);
-        if (!is_array($parts) || count($parts) === 0) {
-            return null;
+        // 2) Fallback: <b> inside the title (works for many cases)
+        try {
+            $boldNode = $productNode->filter('h3.l3-product-title b');
+
+            if ($boldNode->count() > 0) {
+                $text = trim($boldNode->text());
+                if ($text !== '') {
+                    return $text;
+                }
+            }
+        } catch (InvalidArgumentException $e) {
+            // ignore
         }
 
-        $brand = $parts[0];
-
-        // the minimum length so that we don't take something completely unusable
-        return mb_strlen($brand) >= 2 ? $brand : null;
+        return null;
     }
 
     /**
@@ -333,29 +344,13 @@ final class ShoptokTvPageScraper
     }
 
     /**
-     * Tries to extract the external ID from the name, for example,
-     * "Hisense Television 50A6Q, (5000003761) ..." -> "5000003761"
-     *
-     * @param string $title
-     * @return string|null
-     */
-    private function extractExternalIdFromTitle(string $title): ?string
-    {
-        if (preg_match('/\((\d{4,})\)/u', $title, $matches)) {
-            return $matches[1];
-        }
-
-        return null;
-    }
-
-    /**
      * Alternatively, the ID can also be found in the
      * event-viewitem-id attribute on Shoptok.
      *
      * @param Crawler $node
      * @return string|null
      */
-    private function extractExternalIdFromNode(Crawler $node): ?string
+    private function extractExternalId(Crawler $node): ?string
     {
         $attr = $node->attr('event-viewitem-id');
 

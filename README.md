@@ -137,8 +137,7 @@ The scraper is deliberately SRP-oriented:
   * `extractPriceText()`
   * `extractProductUrl()`
   * `extractImageUrl()`
-  * `extractExternalIdFromTitle()`
-  * `extractExternalIdFromNode()`
+  * `extractExternalId()`
   * `extractNextPageUrl()`
   * `normalizeHtmlForCrawler()` – converts view-source HTML into real DOM.
 
