@@ -6,12 +6,15 @@ namespace App\Console\Commands;
 
 use App\Services\Shoptok\ShoptokTvImportService;
 use Illuminate\Console\Command;
+use JetBrains\PhpStorm\Deprecated;
 
+#[Deprecated]
 class ScrapeShoptokTelevisions extends Command
 {
     protected $signature = 'shoptok:scrape-televisions
-                            {--url=https://www.shoptok.si/televizorji/cene/206 : Source URL for televisions}
-                            {--category=Televizorji : Category label to assign to products}';
+                            {--url=https://www.shoptok.si/televizorji/cene/206 : Start URL for televisions category}
+                            {--category=Televizorji : Category label to assign to products}
+                            {--single-page : Only scrape the first page (debug/development)}';
 
     protected $description = 'Scrape televisions from Shoptok and store them in the database.';
 
@@ -24,10 +27,15 @@ class ScrapeShoptokTelevisions extends Command
     {
         $url = (string) $this->option('url');
         $category = $this->option('category');
+        $singlePage = (bool) $this->option('single-page');
 
-        $this->info("Scraping televisions from: {$url}");
-
-        $importedCount = $this->importService->importFromUrl($url, $category);
+        if ($singlePage) {
+            $this->info("Scraping ONLY first page from: {$url}");
+            $importedCount = $this->importService->importFromUrl($url, $category);
+        } else {
+            $this->info("Scraping ALL pages for category starting from: {$url}");
+            $importedCount = $this->importService->importCategory($url, $category);
+        }
 
         $this->info("Imported / updated {$importedCount} products.");
 

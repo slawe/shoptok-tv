@@ -31,4 +31,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'shoptok' => [
+        'base_url'   => env('SHOPTOK_BASE_URL', 'https://www.shoptok.si'),
+        'user_agent' => env('SHOPTOK_USER_AGENT', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'),
+        'referer'    => env('SHOPTOK_REFERER', 'https://www.google.com/'),
+        'cookie'     => env('SHOPTOK_COOKIE', null),
+    ],
+
 ];
