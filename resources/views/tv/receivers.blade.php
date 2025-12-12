@@ -21,7 +21,7 @@
                     >
                         <span>Vsi izdelki</span>
                         <span class="badge bg-light text-dark">
-                            {{ $categoryCounts->sum() }}
+                            {{ $allProductsCount }}
                         </span>
                     </a>
 

@@ -15,11 +15,6 @@ final class ShoptokTvPageScraper
 {
     private const  BASE_URL = 'https://www.shoptok.si';
 
-    public function scrapeHtml(string $html, ?string $category = null, ?string $currentUrl = null): ShoptokPageResult
-    {
-        return $this->parseHtml($html, $category, $currentUrl);
-    }
-
     private function defaultCategory(): string
     {
         return TvCategory::TELEVIZORJI->value;

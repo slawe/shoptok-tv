@@ -6,23 +6,29 @@ namespace App\Http\Controllers;
 
 use App\Enums\TvCategory;
 use App\Models\TvProduct;
+use App\Repositories\TvProduct\TvProductRepository;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 final class TvProductController extends Controller
 {
+    public function __construct(
+        private readonly TvProductRepository $products,
+    ) {}
+
     public function index(): View
     {
-        $products = TvProduct::query()
-            ->where('category', TvCategory::TELEVIZORJI->value)
-            ->orderBy('title')
-            ->paginate(20);     // 20 per page, as required by the assignment
+        $products = $this->products->paginateByCategory(TvCategory::TELEVIZORJI);
 
         return view('tv.index', compact('products'));
     }
 
     public function receivers(Request $request): View
     {
+        // enums representing leaf categories
+        $leafCategoryEnums = TvCategory::tvReceiversLeaf();
+
+        // string values for query param and view
         $leafCategories = $this->getTvReceiverLeafCategories();
 
         $activeCategory = $this->resolveActiveCategory(
@@ -30,29 +36,33 @@ final class TvProductController extends Controller
             $leafCategories,
         );
 
-        $productsQuery = TvProduct::query()
-            ->whereIn('category', $leafCategories);
+        // if there is no active filter -> all leaf categories.
+        // if there is -> we filter the enum list to only that one.
+        $categoriesForListing = $leafCategoryEnums;
 
         if ($activeCategory !== null) {
-            $productsQuery->where('category', $activeCategory);
+            $categoriesForListing = array_filter(
+                $leafCategoryEnums,
+                static fn (TvCategory $category) => $category->value === $activeCategory,
+            );
         }
 
-        $products = $productsQuery
-            ->orderBy('title')
-            ->paginate(20)
-            ->withQueryString();
+        // pagination via repository
+        $products = $this->products->paginateByCategories(
+            $categoriesForListing,
+            20,
+        );
 
-        $categoryCounts = TvProduct::query()
-            ->selectRaw('category, COUNT(*) as aggregate')
-            ->whereIn('category', $leafCategories)
-            ->groupBy('category')
-            ->pluck('aggregate', 'category');
+        // number of products per leaf category (for the menu on the left)
+        $categoryCounts = $this->products->countByCategories($leafCategoryEnums);
+        $allProductsCount = array_sum($categoryCounts);
 
         return view('tv.receivers', [
             'products'        => $products,
             'leafCategories'  => $leafCategories,
             'activeCategory'  => $activeCategory,
             'categoryCounts'  => $categoryCounts,
+            'allProductsCount'=> $allProductsCount,
         ]);
     }
 

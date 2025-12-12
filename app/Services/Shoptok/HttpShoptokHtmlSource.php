@@ -2,6 +2,7 @@
 
 namespace App\Services\Shoptok;
 
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Config;
 use RuntimeException;
 
