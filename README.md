@@ -65,6 +65,11 @@ Default ports:
 * App: http://localhost
 * MySQL: 127.0.0.1:3306
 
+Generate `APP_KEY`:
+```bash
+./vendor/bin/sail artisan key:generate
+```
+
 ### 3. Database & migrations
 
 Update `.env` to use Sail's MySQL service:
