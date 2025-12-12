@@ -7,115 +7,22 @@ namespace App\Services\Shoptok;
 use App\DTO\TvProductData;
 use App\Enums\TvCategory;
 use App\ValueObjects\Money;
-use Deprecated;
-use Illuminate\Http\Client\Factory as HttpFactory;
-use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Config;
 use InvalidArgumentException;
-use RuntimeException;
 use Symfony\Component\DomCrawler\Crawler;
 use Throwable;
 
 final class ShoptokTvPageScraper
 {
-    private const string BASE_URL = 'https://www.shoptok.si';
-
-    /**
-     * ShoptokTvPageScraper constructor.
-     *
-     * @param HttpFactory $http
-     */
-    public function __construct(private readonly HttpFactory $http) {}
-
-    /**
-     * HTTP variant (currently it serves us only as a "stub" - it is actually blocked by 403).
-     * It can remain for code-review, but in practice we will use scrapeHtml().
-     *
-     * @param string $url
-     * @param string|null $category
-     * @return ShoptokPageResult
-     * @throws RequestException
-     * @deprecated
-     */
-    #[Deprecated(message:
-        "Attention Required! | Cloudflar
-         Shoptok.si is using a security service to protect itself from online attacks.
-         The action you just performed triggered the security solution."
-    )]
-    public function scrapePage(string $url, ?string $category = null): ShoptokPageResult
-    {
-        $headers = [
-            'User-Agent'      => Config::get('services.shoptok.user_agent'),
-            'Accept'          => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language' => 'sl-SI,sl;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Referer'         => Config::get('services.shoptok.referer'),
-        ];
-
-        $cookie = Config::get('services.shoptok.cookie');
-
-        if (! empty($cookie)) {
-            $headers['Cookie'] = $cookie;
-        }
-
-        $response = $this->http
-            ->withHeaders($headers)
-            ->get($url);
-
-        if ($response->status() === 403) {
-            throw new RuntimeException(
-                'Live HTTP scraping is blocked with 403 (WAF/anti-bot). ' .
-                'For this project use scrapeHtml() with local HTML fixtures.'
-            );
-        }
-
-        $response->throw(); // if request fails - throw exception
-
-        $html = $response->body();
-
-        return $this->parseDocument($html, $category, $url);
-    }
+    private const  BASE_URL = 'https://www.shoptok.si';
 
     public function scrapeHtml(string $html, ?string $category = null, ?string $currentUrl = null): ShoptokPageResult
     {
-        return $this->parseDocument($html, $category, $currentUrl);
+        return $this->parseHtml($html, $category, $currentUrl);
     }
 
     private function defaultCategory(): string
     {
         return TvCategory::TELEVIZORJI->value;
-    }
-
-    /**
-     * If the fixture is saved from "View Source", the original HTML is actually
-     *  in <td class="line-content"> as escaped text.
-     *
-     *  Here:
-     *  - extract the text of all td.line-content
-     *  - let's combine into one string
-     *  - html_entity_decode → real HTML
-     *
-     * @param string $html
-     * @return string
-     */
-    private function normalizeHtmlForCrawler(string $html): string
-    {
-        if (
-            str_contains($html, 'class="line-content"')
-            && str_contains($html, 'class="html-tag"')
-        ) {
-            // this is view-source format (with line numbers)
-            $tmpCrawler = new Crawler($html);
-
-            $lines = $tmpCrawler
-                ->filter('td.line-content')
-                ->each(static fn (Crawler $n): string => $n->text(''));
-
-            $rawSource = implode("\n", $lines);
-
-            return html_entity_decode($rawSource, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        }
-
-        return $html;
     }
 
     /**
@@ -127,7 +34,7 @@ final class ShoptokTvPageScraper
      * @param string|null $currentUrl
      * @return ShoptokPageResult
      */
-    private function parseDocument(string $html, ?string $category, ?string $currentUrl): ShoptokPageResult
+    public function parseHtml(string $html, ?string $category, ?string $currentUrl): ShoptokPageResult
     {
         // since the HTML is saved from "view-source", we first normalize it
         $normalizedHtml = $this->normalizeHtmlForCrawler($html);
@@ -164,6 +71,39 @@ final class ShoptokTvPageScraper
         }
 
         return new ShoptokPageResult($products, $nextPageUrl);
+    }
+
+    /**
+     * If the fixture is saved from "View Source", the original HTML is actually
+     *  in <td class="line-content"> as escaped text.
+     *
+     *  Here:
+     *  - extract the text of all td.line-content
+     *  - let's combine into one string
+     *  - html_entity_decode → real HTML
+     *
+     * @param string $html
+     * @return string
+     */
+    private function normalizeHtmlForCrawler(string $html): string
+    {
+        if (
+            str_contains($html, 'class="line-content"')
+            && str_contains($html, 'class="html-tag"')
+        ) {
+            // this is view-source format (with line numbers)
+            $tmpCrawler = new Crawler($html);
+
+            $lines = $tmpCrawler
+                ->filter('td.line-content')
+                ->each(static fn (Crawler $n): string => $n->text(''));
+
+            $rawSource = implode("\n", $lines);
+
+            return html_entity_decode($rawSource, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return $html;
     }
 
     /**

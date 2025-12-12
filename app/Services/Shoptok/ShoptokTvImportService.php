@@ -13,7 +13,9 @@ use RuntimeException;
 
 final class ShoptokTvImportService
 {
-    public function __construct(private readonly ShoptokTvPageScraper $scraper) {}
+    public function __construct(
+        private readonly ShoptokHtmlSource $htmlSource,
+        private readonly ShoptokTvPageScraper $scraper) {}
 
     /**
      * Import from a live URL (kept for completeness, currently not used due to 403/WAF).
@@ -27,7 +29,13 @@ final class ShoptokTvImportService
     #[\Deprecated(message: "Live crawling is blocked by WAF – use importFromFixture() instead.")]
     public function importFromUrl(string $url, TvCategory $category): int
     {
-        $result = $this->scraper->scrapePage($url, $category->value);
+        $html = $this->htmlSource->fetch($url);
+
+        $result = $this->scraper->parseHtml(
+            $html,
+            $category->value,
+            $url,
+        );
 
         return $this->upsertProducts($result->products);
     }
@@ -38,22 +46,15 @@ final class ShoptokTvImportService
      * @param string $relativePath
      * @param TvCategory $category
      * @return int
-     * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
      */
-    public function importFromHtmlFixture(string $relativePath, TvCategory $category): int
+    public function importFromFixture(string $relativePath, TvCategory $category): int
     {
-        $absolutePath = resource_path($relativePath);
+        $html = $this->htmlSource->fetch($relativePath);
 
-        if (! File::exists($absolutePath)) {
-            throw new RuntimeException("Fixture not found: {$absolutePath}");
-        }
-
-        $html = File::get($absolutePath);
-
-        $result = $this->scraper->scrapeHtml(
+        $result = $this->scraper->parseHtml(
             $html,
             $category->value,
-            'https://www.shoptok.si/televizorji/cene/206',
+            null,
         );
 
         return $this->upsertProducts($result->products);

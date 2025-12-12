@@ -22,8 +22,8 @@ class ShoptokScrapeAllFixtures extends Command
     {
         // mapping categories to directories with HTML fixtures
         $fixturesConfig = [
-            TvCategory::TELEVIZORJI->value => 'fixtures/shoptok/televizorji',
-            TvCategory::TV_DODATKI->value  => 'fixtures/shoptok/tv_dodatki',
+            TvCategory::TELEVIZORJI->value => 'televizorji',
+            TvCategory::TV_DODATKI->value => 'tv_dodatki',
         ];
 
         $total = 0;
@@ -32,12 +32,7 @@ class ShoptokScrapeAllFixtures extends Command
             // convert string ("Televizorji") back to enum
             $categoryEnum = TvCategory::from($categoryValue);
 
-            $baseDir = resource_path($relativeDir);
-
-            if (! is_dir($baseDir)) {
-                $this->warn("Directory not found for {$categoryEnum->value}: {$baseDir}");
-                continue;
-            }
+            $baseDir = resource_path('fixtures/shoptok/' . $relativeDir);
 
             $files = collect(File::files($baseDir))
                 ->filter(fn ($file) => $file->getExtension() === 'html')
@@ -54,7 +49,7 @@ class ShoptokScrapeAllFixtures extends Command
             foreach ($files as $file) {
                 $relativePath = $relativeDir . '/' . $file->getFilename();
                 $this->line("→ Importing {$relativePath} ({$categoryEnum->value}) ...");
-                $importedForFile = $this->importService->importFromHtmlFixture($relativePath, $categoryEnum);
+                $importedForFile = $this->importService->importFromFixture($relativePath, $categoryEnum);
                 $this->line("   Imported/updated {$importedForFile} product(s) from {$relativePath}.");
 
                 $total += $importedForFile;
