@@ -133,23 +133,22 @@ Core classes:
 
 The scraper is deliberately SRP-oriented:
 
-* One public method for HTTP (`scrapePage()`) - kept for completeness, but not used in production due to WAF.
-* One public method for fixtures (`scrapeHtml()`),
+* One public method for parsing (`parseHtml()`),
 * Many small private methods:
-  * `extractTitle()`
-  * `extractBrand()`
-  * `extractShopName()`
-  * `extractPriceText()`
-  * `extractProductUrl()`
-  * `extractImageUrl()`
-  * `extractExternalId()`
-  * `extractNextPageUrl()`
-  * `normalizeHtmlForCrawler()` – converts view-source HTML into real DOM.
+    * `extractTitle()`
+    * `extractBrand()`
+    * `extractShopName()`
+    * `extractPriceText()`
+    * `extractProductUrl()`
+    * `extractImageUrl()`
+    * `extractExternalId()`
+    * `extractNextPageUrl()`
+    * `normalizeHtmlForCrawler()` – converts view-source HTML into real DOM.
 
 ```php
 final class ShoptokTvPageScraper
 {
-    public function scrapeHtml(
+    public function parseHtml(
         string $html,
         ?string $category = null,
         ?string $currentUrl = null,
@@ -160,6 +159,36 @@ final class ShoptokTvPageScraper
     // Private helpers: extractTitle, extractBrand, extractPriceText, etc.
 }
 ```
+
+### HTML source abstraction
+
+Originally the scraper tried to fetch HTML directly from Shoptok via HTTP, but due to
+WAF/Cloudflare protection this approach is no longer used in practice.
+
+To keep the design clean and testable, the project introduces a small abstraction for the
+HTML source:
+
+- `App\Services\Shoptok\ShoptokHtmlSource` – interface that knows how to return raw HTML:
+  ```php
+  interface ShoptokHtmlSource
+  {
+      public function fetch(string $pathOrUrl): string;
+  }
+  ```
+
+- `FixtureShoptokHtmlSource` – implementation used in this project:
+  - configured with a `basePath` (e.g. `resources/fixtures/shoptok`),
+  - receives relative paths like `televizorji/page_1.html`,
+  - builds an absolute path and returns the file contents.
+
+The ShoptokTvImportService depends on ShoptokHtmlSource (interface), not on a
+concrete implementation. This means:
+- the scraper (`ShoptokTvPageScraper`) only cares about **HTML strings**,
+- the import service does not care whether the HTML came from fixtures, HTTP, or a third-party scraping API,
+- switching to a different source (e.g. `HttpShoptokHtmlSource`) would be a matter of binding a different implementation in `AppServiceProvider`.
+
+This is a small application of the Strategy / DIP idea: the "how do we obtain HTML"
+concern is isolated behind a simple interface.
 
 This design adheres to SOLID:
 * **S**ingle Responsibility - parsing and persistence are separated.
@@ -224,6 +253,48 @@ The command is left in the codebase only as documentation of the original intent
 Model: `App\Models\TvProduct`
 
 The model uses `$guarded` nothing is "mass-assignment" protected.
+
+### Repository layer
+
+Instead of querying the `TvProduct` model directly from controllers and services, the
+project introduces a repository abstraction:
+
+- `App\Repositories\TvProduct\TvProductRepository` – interface defining operations:
+    - `upsertMany(TvProductData[] $products): int`
+    - `paginateByCategory(TvCategory $category, int $perPage = 20)`
+    - `paginateByCategories(TvCategory[] $categories, int $perPage = 20)`
+    - `countByCategories(TvCategory[] $categories): array<string,int>`
+
+- `App\Repositories\TvProduct\EloquentTvProductRepository` – Eloquent implementation
+  that:
+    - uses `updateOrCreate()` keyed by `product_url`,
+    - builds the necessary queries for pagination and per-category counts.
+
+The repository is registered in the IoC container:
+
+```php
+// App\Providers\AppServiceProvider::register()
+$this->app->bind(
+    TvProductRepository::class,
+    EloquentTvProductRepository::class,
+);
+```
+
+This allows controllers and services to depend on the `interface`:
+```php
+final class TvProductController extends Controller
+{
+    public function __construct(
+        private readonly TvProductRepository $products,
+    ) {}
+}
+```
+
+Laravel's IoC container resolves the concrete implementation at runtime, which:
+
+* keeps the controller agnostic of the persistence details,
+* makes the code easier to test (the repository can be replaced with a fake or mock in tests),
+* follows the Dependency Inversion Principle (DIP): high-level code depends on abstractions, not on Eloquent directly.
 
 ---
 
@@ -302,6 +373,22 @@ A few natural extensions:
   * Listing pages (`/televizorji`, `/tv-sprejemniki`).
 * Extract interfaces for the scraping service to allow swapping implementations<br>
 (e.g. using a headless browser / external scraping API behind the same interface).
+
+---
+
+### Testing & extensibility notes
+
+Thanks to the repository and HTML source abstractions:
+
+- `TvProductRepository` can be replaced with an in-memory implementation or a mock in
+  tests, without touching controllers or services.
+- `ShoptokHtmlSource` can be swapped from `FixtureShoptokHtmlSource` to a real
+  HTTP-based implementation (or a headless browser / scraping API) if the WAF limitations
+  change in the future.
+
+The current implementation focuses on fixture-based scraping for the purposes of the
+assignment, but the architecture is intentionally kept open for these extensions.
+
 
 ---
 
